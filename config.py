@@ -1,8 +1,9 @@
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+from hyperopt import hp
 from utils import choose
 
 
@@ -32,10 +33,10 @@ class SimpleNet(nn.Module):
         self.output = nn.Linear(3,1)
         nn.init.kaiming_normal_(self.output.weight)
     def forward(self,x):
-        out = self.hidden(x.float())
+        out = self.hidden(x)
         out = F.relu(out)
         out = self.output(out)
-        out = F.sigmoid(out)
+        out = torch.sigmoid(out)
         return out
 
 class Nron(nn.Module):
@@ -45,8 +46,8 @@ class Nron(nn.Module):
         #self.layer2 = nn.Linear(1,1)
         #nn.init.kaiming_normal_(self.layer.weight)
     def forward(self,x):
-        out = self.layer(x.float())
-        out = F.sigmoid(out)
+        out = self.layer(x.astype(np.float64))
+        out = torch.sigmoid(out)
         #out = self.layer2(out)
         return out
 
@@ -60,12 +61,12 @@ class ThreeLayer(nn.Module):
         self.output = nn.Linear(5,1)
         nn.init.kaiming_normal_(self.output.weight)
     def forward(self,x):
-        out = self.hidden(x.float())
+        out = self.hidden(x)
         out = F.relu(out)
         out = self.hidden2(out)
         out = F.relu(out)
         out = self.output(out)
-        out = F.sigmoid(out)
+        out = torch.sigmoid(out)
         return out
 
 def get_optimizer(model):
@@ -78,12 +79,42 @@ def get_optimizer(model):
     return optimizer_class(model.parameters(), lr=lr, momentum=momentum)
 
 
-DATA_DIR = "../../data/lin/"
-MODEL_CLASS = Nron#SimpleNet#ConvNet
+DATA_NUM = 2
+NET_NUM = 2
+METHOD_SHORT = 'Bayes'
+
+if DATA_NUM == 1:
+    DATA_DIR = "../../data/lin"
+elif DATA_NUM == 2:
+    DATA_DIR = "../../data/simple"
+elif DATA_NUM == 3:
+    DATA_DIR = "../../data/threelayer"
+
+if NET_NUM == 1:
+    NET_NAME = 'One Layer NN'
+    MODEL_CLASS = Nron
+elif NET_NUM == 2:
+    NET_NAME = 'Simple NN'
+    MODEL_CLASS = SimpleNet
+elif NET_NUM == 3:
+    NET_NAME = 'Three Layer NN'
+    MODEL_CLASS = ThreeLayer
+
+#Nron#SimpleNet#ConvNet
+if METHOD_SHORT == 'RS':
+    METHOD = 'Random Search'
+elif METHOD_SHORT == 'Bayes':
+    METHOD = 'Bayesian Optimization'
+if METHOD_SHORT == 'HGD':
+    METHOD = 'Hypergradient Descent'
+
 LOSS_FN = F.binary_cross_entropy
 HYPERPARAM_NAMES = ["lr", "momentum"]  # This is unfortunate.
-EPOCHS = 10
+EPOCHS = 5
 BATCH_SIZE = 64
 POPULATION_SIZE = 15  # Number of models in a population
 EXPLOIT_INTERVAL = 0.5  # When to exploit, in number of epochs
 USE_SQLITE = True # If False, you'll need to set up a local Postgres server
+SPACE = {'learning_rate': hp.uniform('learning_rate', 0.001, 1),
+        # 'momentum': hp.loguniform('momentum', 0, 1)
+        } #for bayesian optimization
